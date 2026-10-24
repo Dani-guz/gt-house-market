@@ -1,0 +1,66 @@
+name: scrape-daily
+
+on:
+  schedule:
+    # 06:15 UTC = 00:15 en Guatemala (UTC-6). Minuto no redondo para evitar la hora pico de Actions.
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Scrapear sin escribir ni commitear"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        source: [propilatam]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Tests del parser
+        run: python -m pytest -q
+
+      - name: Scrapear ${{ matrix.source }}
+        id: scrape
+        run: |
+          python -m scrapers.run --source "${{ matrix.source }}" ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: Commitear Parquet nuevo
+        # always(): si la corrida fue parcial (exit 1) igual se guarda lo obtenido;
+        # el job queda en rojo para que el fallo sea visible.
+        if: always() && !inputs.dry_run && steps.scrape.outcome != 'skipped'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/bronze
+          if git diff --cached --quiet; then
+            echo "Sin datos nuevos para commitear."
+            exit 0
+          fi
+          git commit -m "data(bronze): ${{ matrix.source }} $(date -u +%Y-%m-%dT%H:%MZ)"
+          for attempt in 1 2 3; do
+            git pull --rebase --quiet origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            echo "Push falló (intento $attempt), reintentando..."
+            sleep $((attempt * 10))
+          done
+          exit 1

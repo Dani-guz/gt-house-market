@@ -1,0 +1,9 @@
+[project]
+name = "gt-house-market"
+version = "0.1.0"
+description = "Pipeline de datos de anuncios inmobiliarios de Ciudad de Guatemala (git scraping + dbt/DuckDB)."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

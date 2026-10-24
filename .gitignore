@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+
+# Raw HTML nunca entra al repo (solo Parquet en data/bronze)
+*.html
+!tests/fixtures/*.html
+debug/
+
+# dbt (para sesiones futuras)
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+*.duckdb
+*.duckdb.wal
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS / editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
