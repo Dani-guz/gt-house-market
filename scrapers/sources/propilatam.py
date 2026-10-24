@@ -161,7 +161,6 @@ def to_bronze_row(
     return {
         "run_id": run_id,
         "scraped_at": scraped_at,
-        "source": NAME,
         "source_page_url": page_url,
         "operation": item.get("marketplace_type") or operation,
         "listing_id": str(listing_id),

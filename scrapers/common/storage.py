@@ -6,6 +6,10 @@ Layout (estilo Hive, lo lee DuckDB/dbt con ``hive_partitioning``):
 
 Un archivo por corrida y fuente. El esquema lo define cada fuente con pyarrow,
 así un cambio en el sitio rompe la escritura en vez de colarse en silencio.
+
+Las columnas de partición (``source``, ``scrape_date``) viven solo en la ruta,
+no dentro del archivo: si estuvieran en ambos lados, pyarrow y DuckDB fallan al
+fusionar el tipo de la columna del archivo con el de la partición.
 """
 
 from __future__ import annotations
@@ -20,11 +24,12 @@ import pyarrow.parquet as pq
 
 logger = logging.getLogger(__name__)
 
-# Columnas de control que toda fuente lleva en bronze.
+PARTITION_KEYS = ("source", "scrape_date")
+
+# Columnas de control que toda fuente lleva en bronze (además de las de partición).
 ENVELOPE_FIELDS = [
     pa.field("run_id", pa.string(), nullable=False),
     pa.field("scraped_at", pa.timestamp("us", tz="UTC"), nullable=False),
-    pa.field("source", pa.string(), nullable=False),
     pa.field("source_page_url", pa.string(), nullable=False),
 ]
 
@@ -53,6 +58,9 @@ def write_bronze(
     scraped_at: datetime,
 ) -> Path:
     """Valida ``records`` contra ``schema`` y escribe un Parquet comprimido con zstd."""
+    clash = set(PARTITION_KEYS) & set(schema.names)
+    if clash:
+        raise ValueError(f"El esquema no puede incluir columnas de partición: {sorted(clash)}")
     rows = list(records)
     table = pa.Table.from_pylist(rows, schema=schema)
     path = bronze_path(base_dir, source, scraped_at)
